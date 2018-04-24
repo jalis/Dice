@@ -33,6 +33,8 @@ n=1
 full_out=''
 default_trim=false
 trim=default_trim
+defaultFormat='%r: %D; %RR %Rr total %t'
+trimFormat='%Rr %t'
 
 #####################################################################################################################
 
@@ -59,6 +61,90 @@ if FileTest.file?('alias.ini')
 		end
 	end
 	iniFile.close
+end
+
+#####################################################################################################################
+
+def diceInterpret(input, gen, format)
+	output=''
+	outputParts=Hash.new
+	
+	if (cmd=/(?<roll>(?<times>\d+)[dD](?<die>\d+))\s*(?<add>(?:\s*[\+|\-]\s*\d+)*)?\s*(?:(?<drop>drop)\s*(?<dropmod>l|h)\w*\s*(?<dropN>\d)\s*\z|\z)/i.match(input))!=nil
+		outputParts['%r']=cmd['roll']
+		outputParts['%t']=cmd['times']
+		outputParts['%d']=cmd['die']
+		outputParts['%RR']=''
+		outputParts['%Rr']=''
+		outputParts['%Srr']=''
+		outputParts['%D']=''
+		outputParts['%a']=''
+		outputParts['%s']=''
+		outputParts['%As']=''
+		outputParts['%t']=''
+		
+		dice=Array.new()
+		cmd['times'].to_i.times do
+			cmd['die'].to_i!=0 ? dice.push(gen.rand(cmd['die'].to_i)+1) : dice.push(0)
+		end
+		dice=dice.sort
+		
+		sum=0
+
+		outputParts['%D']=dice.join(', ')
+		
+		sum=dice.inject { |s, n| s+n.to_i}
+		
+		if cmd['drop']!=nil
+			if cmd['dropN'].to_i>=dice.size
+				outputParts['%RR']="dropped all dice;"
+			else
+				outputParts['%RR']="dropping " + (cmd['dropN']=='1' ? "the" : cmd['dropN']) + (cmd['dropmod']=='l' ? " lowest" : " highest") + (cmd['dropN']==1 ? " die;" : " dice;")
+			end
+			
+			cmd['dropmod']=='l' ? dice=dice.drop(cmd['dropN'].to_i) : dice.pop(cmd['dropN'].to_i)
+			sum=0
+			outputParts['%Rr']=''
+			for i in 0..dice.size-1
+				if i!=dice.size-1
+					outputParts['%Rr'] << dice[i].to_s + ", "
+				else
+					outputParts['%Rr'] << dice[i].to_s
+				end
+				sum=sum+dice[i]
+			end
+			outputParts['%Srr']=sum.to_s
+			outputParts['%Rr'] << ';' unless dice.size==0
+			
+		end
+		outputParts['%t']=sum.to_s
+		outputParts['%As']=sum.to_s
+		
+		addition=cmd['add'].gsub(/\s+/, "")
+		if addition!=""
+			add=addition.scan(/\+|\-|\d+/)
+			outputParts['%a'] << addition
+			outputParts['%t'] << addition + '='
+			
+			i=0
+			while i<add.size-1
+				if add[i]=='+'
+					sum=sum+add[i+1].to_i
+				else
+					sum=sum-add[i+1].to_i
+				end
+				i=i+2
+			end
+			outputParts['%t'] << sum.to_s
+		end
+		outputParts['%s']=sum.to_s
+		fOutput=''
+		fOutput << format
+		(while fOutput.gsub!(/(#{outputParts.keys.join('|')})/, outputParts); end) unless outputParts.empty?
+		output << fOutput.squeeze(" ").lstrip.rstrip
+	else
+		output=nil
+	end
+	return output
 end
 
 #####################################################################################################################
@@ -104,12 +190,27 @@ loop do
 		redo
 	end
 	(while input.gsub!(/\b(#{aliasTable.keys.join('|')})\b/, aliasTable); end) unless aliasTable.empty?
+	parR=0
+	while (parR=input.rindex('(')) != nil
+		parL=0
+		if (parL=input.index(')', parR)) == nil
+			puts 'Mismatched parentheses!'
+			redo
+		end
+		result=diceInterpret(input[parR+1..parL-1], gen, '%s')
+		if result==nil
+			puts "Invalid format within parenthesis! Please use the format <times>d<size>(+<mod>)(-<mod>(drop <lo/hi> <n>)(times <n>)(trim)"
+			redo
+		end
+		input[parR..parL]=result
+	end
 	if input=='a'
 		aliasTable.each do |x|
 			puts x[0] + '=' + x[1]
 		end
 		redo
 	end
+	
 	
 	full_out=''
 	n=1
@@ -130,71 +231,13 @@ loop do
 	end
 	
 	n.times do |iteration|
-		if (cmd=/(?<roll>(?<times>\d+)[dD](?<die>\d+))\s*(?<add>(?:\s*[\+|\-]\s*\d+)*)?\s*(?:(?<drop>drop)\s*(?<dropmod>l|h)\w*\s*(?<dropN>\d)\s*\z|\z)/i.match(input))!=nil
-			last_cmd=input
-			output=''
-			dice=Array.new()
-			cmd['times'].to_i.times do
-				cmd['die'].to_i!=0 ? dice.push(gen.rand(cmd['die'].to_i)+1) : dice.push(0)
-			end
-			dice=dice.sort
-			
-			output=cmd['roll'] + ": " unless trim
-			sum=0
-			
-			for i in 0..dice.size-1
-				if i!=dice.size-1
-					output = output + dice[i].to_s + ", " unless trim
-				else
-					output = output + dice[i].to_s unless trim
-				end
-				sum=sum+dice[i]
-			end
-			
-			if cmd['drop']!=nil
-				output=output + "; " unless trim
-				if cmd['dropN'].to_i>=dice.size
-					output=output + "dropped all dice, result 0."
-				else
-					output=output + "dropping " + (cmd['dropN']=='1' ? "the" : cmd['dropN']) + (cmd['dropmod']=='l' ? " lowest" : " highest") + (cmd['dropN']==1 ? " die; " : " dice; ") unless trim
-					cmd['dropmod']=='l' ? dice=dice.drop(cmd['dropN'].to_i) : dice.pop(cmd['dropN'].to_i)
-					sum=0
-					for i in 0..dice.size-1
-						if i!=dice.size-1
-							output = output + dice[i].to_s + ", "
-						else
-							output = output + dice[i].to_s
-						end
-						sum=sum+dice[i]
-					end
-					output=output + "; " if trim
-				end
-			end
-			output=output + "; total " unless trim
-			output=output + sum.to_s
-			
-			addition=cmd['add'].gsub(/\s+/, "")
-			if addition!=""
-				add=addition.scan(/\+|\-|\d+/)
-				output=output + addition + "="
-				
-				i=0
-				while i<add.size-1
-					if add[i]=='+'
-						sum=sum+add[i+1].to_i
-					else
-						sum=sum-add[i+1].to_i
-					end
-					i=i+2
-				end
-				output=output+sum.to_s
-			end
-			
-			iteration!=n-1 ? full_out=full_out+output+"\n" : full_out=full_out+output
-		else
+		output=diceInterpret(input, gen, trim ? trimFormat : defaultFormat)
+		if output==nil
 			puts "Invalid format! Please use the format <times>d<size>(+<mod>)(-<mod>(drop <lo/hi> <n>)(times <n>)(trim)"
 			break
 		end
+		last_cmd=input
+		iteration!=n-1 ? full_out=full_out+output+"\n" : full_out=full_out+output
 	end
 	IO.popen(clipboard, 'w') { |f| f << full_out } unless noclip
 	puts full_out unless full_out==''
