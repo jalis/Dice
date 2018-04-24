@@ -51,13 +51,15 @@ puts "Clipboard not accessible! Defaulting clipboard copying to off and disablin
 
 aliasTable=Hash.new
 
-iniFile=File.open('alias.ini','r')
-iniFile.each_line do |x|
-	if (aliasing=/(\w+)\=(.+)/.match(x))!=nil
-		aliasTable[aliasing[1]]=aliasing[2]
+if FileTest.file?('alias.ini')
+	iniFile=File.open('alias.ini','r')
+	iniFile.each_line do |x|
+		if (aliasing=/(\w+)\=(.+)/.match(x))!=nil
+			aliasTable[aliasing[1]]=aliasing[2]
+		end
 	end
+	iniFile.close
 end
-iniFile.close
 
 #####################################################################################################################
 
