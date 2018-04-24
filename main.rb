@@ -69,8 +69,8 @@ def diceInterpret(input, gen, format)
 	output=''
 	outputParts=Hash.new
 	
-	if (cmd=/(?<roll>(?<times>\d+)[dD](?<die>\d+))\s*(?<add>(?:\s*[\+|\-]\s*\d+)*)?\s*(?:(?<drop>drop)\s*(?<dropmod>l|h)\w*\s*(?<dropN>\d)\s*\z|\z)/i.match(input))!=nil
-		outputParts['%r']=cmd['roll']
+	if (cmd=/(?<roll>(?<times>\d+)\s*[dD]\s*(?<die>\d+))\s*(?<add>(?:\s*[\+|\-]\s*\d+)*)?\s*(?:(?<drop>drop)\s*(?<dropmod>l|h)\w*\s*(?<dropN>\d)\s*\z|\z)/i.match(input))!=nil
+		outputParts['%r']=cmd['roll'].gsub(/\s+/,'')
 		outputParts['%t']=cmd['times']
 		outputParts['%d']=cmd['die']
 		outputParts['%RR']=''
@@ -191,19 +191,23 @@ loop do
 	end
 	(while input.gsub!(/\b(#{aliasTable.keys.join('|')})\b/, aliasTable); end) unless aliasTable.empty?
 	parR=0
+	parE=false
 	while (parR=input.rindex('(')) != nil
 		parL=0
 		if (parL=input.index(')', parR)) == nil
 			puts 'Mismatched parentheses!'
-			redo
+			parE=true
+			break
 		end
 		result=diceInterpret(input[parR+1..parL-1], gen, '%s')
 		if result==nil
 			puts "Invalid format within parenthesis! Please use the format <times>d<size>(+<mod>)(-<mod>(drop <lo/hi> <n>)(times <n>)(trim)"
-			redo
+			parE=true
+			break
 		end
 		input[parR..parL]=result
 	end
+	redo if parE
 	if input=='a'
 		aliasTable.each do |x|
 			puts x[0] + '=' + x[1]
