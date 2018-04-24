@@ -1,6 +1,8 @@
 gen=Random.new()
 
-puts	"Usage: <times>d<size>(+<mod>)(-<mod>(drop <lo/hi> <n>)(times <n>)(trim).\n'q' to quit, 'r' to repeat last command. 'v' to change verbosity. 'c' to change copying result to clipboard. 'h' for help."
+#####################################################################################################################
+
+puts	"Usage: <times>d<size>(+<mod>)(-<mod>(drop <lo/hi> <n>)(times <n>)(trim).\n'q' to quit, 'r' to repeat last command. 'v' to change verbosity. 'c' to change copying result to clipboard. 'h' for help. 'x=y' to alias 'y' as 'x'. 'a' to print aliases."
 
 help=Hash.new
 help['r']="Repeats the last valid command."
@@ -24,22 +26,40 @@ help.each_with_index do |x, i|
 end
 help_default="Use 'h <subject>' for help on the subject. Use 'h all' to print all help."
 
-clipboard=''
-
-clipboard='clip' if (/cygwin|mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM) != nil
-clipboard='pbcopy' if (/darwin/ =~ RUBY_PLATFORM) !=nil
-clipboard=`xsel --clipboard -input` if clipboard==''
+#####################################################################################################################
 
 last_cmd=''
 n=1
 full_out=''
 default_trim=false
 trim=default_trim
-noclip=false
 
+#####################################################################################################################
+
+clipboard=''
+
+clipboard='clip' if (/cygwin|mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM) != nil
+clipboard='pbcopy' if (/darwin/ =~ RUBY_PLATFORM) !=nil
+clipboard=`xsel --clipboard -input` if clipboard==''
+
+noclip=false
 noclip=true if clipboard==''
 
 puts "Clipboard not accessible! Defaulting clipboard copying to off and disabling switching." if clipboard==''
+
+#####################################################################################################################
+
+aliasTable=Hash.new
+
+iniFile=File.open('alias.ini','r')
+iniFile.each_line do |x|
+	if (aliasing=/(\w+)\=(.+)/.match(x))!=nil
+		aliasTable[aliasing[1]]=aliasing[2]
+	end
+end
+iniFile.close
+
+#####################################################################################################################
 
 loop do
 	input=gets().chomp
@@ -68,6 +88,23 @@ loop do
 			puts help_all
 		else
 			puts help[h[2]] != nil ? help[h[2]] : "Invalid subject!"
+		end
+		redo
+	end
+	if (aliasing=/(\w+)\=(.+)/.match(input))!=nil
+		aliasTable[aliasing[1]]=aliasing[2]
+		puts "Aliasing '#{aliasing[2]}' to '#{aliasing[1]}"
+		iniFile=File.open('alias.ini','w+')
+		aliasTable.each do |x|
+			iniFile << x[0] + '=' + x[1] + "\n"
+		end
+		iniFile.close
+		redo
+	end
+	(while input.gsub!(/\b(#{aliasTable.keys.join('|')})\b/, aliasTable); end) unless aliasTable.empty?
+	if input=='a'
+		aliasTable.each do |x|
+			puts x[0] + '=' + x[1]
 		end
 		redo
 	end
