@@ -69,6 +69,11 @@ def diceInterpret(input, gen, format)
 	output=''
 	outputParts=Hash.new
 	
+	if (add=/add\s*(\d+)/.match(input))!=nil
+		input.gsub!(/^\s*(\d+)(?=\s*[d|D])/) {|d| d.to_i+add[1].to_i}
+		input.gsub!(/add\s*\d+/, '')
+	end
+	
 	if (cmd=/(?<roll>(?<times>\d+)\s*[dD]\s*(?<die>\d+))\s*(?<add>(?:\s*[\+|\-]\s*\d+)*)?\s*(?:(?<drop>drop)\s*(?<dropmod>l|h)\w*\s*(?<dropN>\d)\s*\z|\z)/i.match(input))!=nil
 		outputParts['%r']=cmd['roll'].gsub(/\s+/,'')
 		outputParts['%t']=cmd['times']
@@ -214,7 +219,6 @@ loop do
 		end
 		redo
 	end
-	
 	
 	full_out=''
 	n=1
